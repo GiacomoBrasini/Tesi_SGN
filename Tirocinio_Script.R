@@ -1,4 +1,5 @@
-
+#Progetto Tesi: Importanza delle Aree Protette in Italia
+#Quest' analisi ha l'obiettivo di verificare quante specie della Red List IUCN (italiana) sono contenute all'interno delle aree protette d'Italia (Siti Euap e Siti Rete-Natura 00).
 
 #install.packages("CoordinateCleaner")
 #install.packages("countrycode")
