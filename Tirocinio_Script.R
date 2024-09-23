@@ -8,12 +8,10 @@
 #install.packages("DescTools")
 #install.packages("dbscan")
 #install.packages("mapview")
-
 library(mapview)
 library(countrycode)
 library(CoordinateCleaner)
 library(dplyr)
-library(tidyr)
 library(ggplot2)
 library(rgbif)
 library(sp)
@@ -56,10 +54,11 @@ dat <- dat %>%
 
 # Convert country code from ISO2c to ISO3c
 dat$countryCode <-  countrycode(dat$countryCode, origin =  'iso2c', destination = 'iso3c')
-#Check that all records are in the ITA country
+
+# Check that all records are in the ITA country
 prova <-filter(dat, countryCode == "ITA")
-class(dat)
-dat$decimalLatitude <- as.numeric(dat$decimalLatitude)
+
+# dat$decimalLatitude <- as.numeric(dat$decimalLatitude)
 summary(dat)
 
 # Flag problems
@@ -83,9 +82,9 @@ dat_fl <- dat[!flags$.summary,]
 
 write.csv(dat_cl, "dataset_gbif_pulito_pt1.csv")
 dat_cl <- read.csv("dataset_gbif_pulito_pt1.csv")
-####
-#write.table(dat_cl, "dataset_pulito_pt1.csv", sep="\t")
-#dat <- read.csv("dataset_pulito_pt1.csv", sep= "\t")
+
+# write.table(dat_cl, "dataset_pulito_pt1.csv", sep="\t")
+# dat <- read.csv("dataset_pulito_pt1.csv", sep= "\t")
 
 # Remove records with low coordinate precision
 summary(dat_cl$coordinateUncertaintyInMeters)
@@ -143,6 +142,7 @@ colnames(dat)[1] <- "Name species"
 # write.table(dat, "dataset_pulito_finale.csv", sep=",")
 dat_pulito <- read.csv("dataset_pulito_finale.csv", sep=",")
 
+
 ## Filtrazione delle occorrenze Gbif in base al dato temporale----
 dat_pulito <- read.csv("dataset_pulito_finale.csv", sep=",")
 summary(dat_pulito)
@@ -170,6 +170,8 @@ ggplot() +
   geom_point(data = dat_pulito, aes(x = decimalLongitude, y = decimalLatitude), colour = "darkred", size = 0.1) +
   theme_bw()
 dev.off()
+
+
 
 # RED LIST e Dataset Gbif ----
 # Loading redlist
@@ -233,7 +235,7 @@ unique(sp_DD$Nm_spcs) # per contare il numero di specie per ciascuna Categoria d
 
 # Trasformazione dat_pulito in elemento sf
 dat_pulito_sf <- st_as_sf(dat_pulito, coords = c("decimalLongitude", "decimalLatitude"), crs = "+proj=longlat +datum=WGS84")
-#verifico che i sistemi di riferimento dei due oggetti_sf siano gli stessi
+# verifico che i sistemi di riferimento dei due oggetti_sf siano gli stessi
 st_crs(dat_pulito_sf) == st_crs(species_gbif_rl)
 
 # Visualizzo le occorrenze gbif_rl 
@@ -243,6 +245,8 @@ ggplot() +
   geom_sf(data = species_gbif_rl, colour = "darkred", size = 0.01, alpha = 0.5)+
   theme_minimal()
 dev.off()
+
+
 
 # VI Elenco Ufficiale Aree Naturali Protette (EUAP) ----
 # Carico file .shp aree protette
@@ -254,17 +258,19 @@ siti_protet <- st_make_valid(siti_protet)
 # st_crs(dat_pulito_sf) == st_crs(siti_protet) #verifca dei sistemi di riferimento
 
 unique(siti_protet$tipo)
+class(siti_protet$tipo)
 
 # Elimino le Aree marine protette e Parchi Naturali Sommersi
 siti_protet <- siti_protet %>%
   filter(tipo != "MAR" & tipo != "GAPN")
 
-#Plot delle aree protette suddivise per tipologia
+# Conversione della colonna tipo in un fattore ordinato
 livelli_tipo <- c("RNS", "PNZ", "PNR", "RNR", "AANP")
 siti_protet$tipo <- factor(siti_protet$tipo, levels = livelli_tipo)
 
-# mapview(siti_protet)
+# mapview(siti_protet) # open street map
 
+# Plot delle aree protette suddivise per tipologia
 ggplot() +
   coord_fixed() + 
   geom_polygon(data = ita_map, aes(x = long, y = lat, group = group), colour = "gray50", fill = "grey70", alpha = 0.5) +
@@ -288,7 +294,7 @@ siti_protet_type <- siti_protet %>%
 
 
 ## Contare le occorrenze DENTRO le aree protette----
-# Filtrazione delle occorrenze Gbif in base al dato temporale
+
 species_gbif_rl$index_sp <- 1:nrow(species_gbif_rl)
 sp_in_aree_pr <- st_within(species_gbif_rl, siti_protet)
 sp_in_aree_pr_df <- as.data.frame(sp_in_aree_pr)
@@ -375,6 +381,7 @@ ggplot() +
 dev.off()
 # per la presentazione in latex meglio esportare il plot come pdf
 
+# per un po' di pulizia: 
 # rm(sp_in_aree_pr, sp_in_aree_pr_cat_risk, sp_in_aree_pr_df)
 # rm(sp_out_aree_pr_cat_risk, sp_out_aree_pr_df)
 
@@ -474,7 +481,7 @@ df_sp_only_out_most_risk$rdlstCt <- factor(df_sp_only_out_most_risk$rdlstCt,
                                            levels = c("Critically Endangered", "Endangered", 
                                                       "Vulnerable", "Near Threatened"))
 ggplot() +
-  # coord_fixed() + 
+  #coord_fixed() + 
   geom_polygon(data = ita_map, aes(x = long, y = lat, group = group), colour = "gray50", fill = "gray70", alpha = 0.5) +
   geom_sf(data = siti_protet, color = "darkgreen", fill = "green3", alpha = 0.3, size = 0.1) +
   geom_sf(data = df_sp_only_out_most_risk, aes(color = rdlstCt), size = 0.6)+
@@ -512,9 +519,13 @@ sp_only_in_low_protect <- df_sp_only_in %>%
 # ANALISI PER OGNI TIPOLOGIA DI AREA PROTETTA ----
 lista_aree_pr <- split(siti_protet, siti_protet$tipo)
 
+lista_aree_pr[[2]] <- lista_aree_pr[[2]] %>% 
+  filter(nome_gazze != "Parco Nazionale dell'Arcipelago di La Maddalena")
+pnz <- lista_aree_pr[[2]]
+
 species_gbif_rl$index_sp <- 1:nrow(species_gbif_rl)
 
-#creare una funzione per analizzare le tipologie di aree protette
+# creare una funzione per analizzare le tipologie di aree protette
 
 function_type_areepr <- function(tipo_areepr){
   sp_in <- st_within(species_gbif_rl, tipo_areepr)
@@ -532,7 +543,7 @@ function_type_areepr <- function(tipo_areepr){
 
 results_typearee_sp_in <- lapply(lista_aree_pr, function_type_areepr)
 
-#dataset contenente occorrenze e quindi specie per ogni tipologia di area protetta
+# dataset contenente occorrenze e quindi specie per ogni tipologia di area protetta
 sp_in_rns <- results_typearee_sp_in[[1]]
 sp_in_pnz <- results_typearee_sp_in[[2]]
 sp_in_pnr <- results_typearee_sp_in[[3]]
@@ -572,7 +583,8 @@ count_specie <- function(specie_in_areepr){
   return(count_specie_areepr)
 }
 
-#lista delle tipologie di area protetta e per ciascuna area del dataframe sono indicate il numero di specie contenente
+
+# lista delle tipologie di area protetta e per ciascuna area del dataframe sono indicate il numero di specie contenente
 list_df_sp_in_num_type <- lapply(results_typearee_sp_in,count_specie)
 
 num_sp_in_rns <- list_df_sp_in_num_type[[1]]
@@ -609,11 +621,14 @@ rnr_prova <- lista_prova[[4]]
 aanp_prova <- lista_prova[[5]]
 pnz_prova <- lista_prova[[2]]
 
-# Parco Nazionale dell'Arcipelago di La Maddalena non ha all'interno specie presenti nella Red List
+# Parco Nazionale dell'Arcipelago di La Maddalena non ha all'interno
+# specie presenti nella Red List
+
 
 # ci sono molte aree protette che non contengono specie della lista Rossa...
 
 
+########### per i barplot delle RNS, PNR, RNR e AANP potrei prendere le prime con più specie e fare i 2 barplot ###########
 
 ## qualche grafico barplot per Parchi Nazionali ----
 
@@ -623,6 +638,10 @@ write.csv(num_sp_in_pnz, "num_sp_in_pnz.csv")
 sigle <- c("PN-AS", "PN-GOG", "PN-GP", "PN-VG", "PN-ST","PN-DB","PN-CT","PN-ATE",
            "PN-FMC","PN-MS","PN-GSML","PN-MAI","PN-ALM","PN-CIR","PN-VES","PN-CVD",
            "PN-GAR","PN-AM ","PN-ALL","PN-POL","PN-SIL","PN-ASP","PN-ALM","PN-AT")
+
+#pnz$sigle <- sigle
+
+# barplot num specie Parchi Nazionali
 
 lista_aree_pr[[2]]$sigle <- sigle
 
@@ -640,7 +659,7 @@ ggplot(num_sp_in_pnz, aes(x = reorder(sigle, -num_species), y = num_species)) +
         panel.background = element_rect(fill = "lightgrey", colour = NA))
 dev.off()
 
-# barplot più specifico numero di specie suddiviso per cat di rischio 
+# barplot più specifico numero di specie suddiviso per cat di rischio, (capire come aggregare i dati di sp_pnz_df)
 pnz_prova$rdlstCt <- factor(pnz_prova$rdlstCt,
                             levels = c("Critically Endangered", "Endangered", 
                                        "Vulnerable", "Near Threatened", "Least Concern", "Data Deficient"))
@@ -657,16 +676,15 @@ ggplot(pnz_prova, aes(x = reorder(sigle, -total_species), y = risk_species, fill
                                "Critically Endangered" = "darkred", "Data Deficient" = "darkgrey"))
 dev.off()
 
-########### per i barplot delle RNS, PNR, RNR e AANP prendere le prime aree con più specie  ###########
-
+ 
 ### barplot num specie Riserve naturali statali Nazionali ----
 
-ggplot(num_sp_in_rns, aes(x = reorder(protected_area, -num_species), y = num_species)) +
-  geom_bar(stat = "identity")+
-  labs(x = "Riserve Naturali Statali", y = "Num species") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),  # Rotazione etichette sull'asse x per una migliore leggibilità
-        panel.background = element_rect(fill = "lightgrey", colour = NA))
-dev.off()
+# ggplot(num_sp_in_rns, aes(x = reorder(protected_area, -num_species), y = num_species)) +
+#  geom_bar(stat = "identity")+
+#  labs(x = "Riserve Naturali Statali", y = "Num species") +
+#  theme(axis.text.x = element_text(angle = 45, hjust = 1),  # Rotazione etichette sull'asse x per una migliore leggibilità
+#        panel.background = element_rect(fill = "lightgrey", colour = NA))
+# dev.off()
 
 num_sp_in_rns <- num_sp_in_rns %>% 
   filter(num_species >= 10)
@@ -821,6 +839,7 @@ functions <- ls()[sapply(ls(), function(x) is.function(get(x)))]
 rm(list = functions)
 
 
+
 # Siti Rete Natura 00 ----
 sf_use_s2(FALSE) #pacchetto sf S2 gestione delle geometrie sferiche 
 rete_nat_00 <- st_read("C:/Project_tirocinio/data/Rete_Nat_2000.shp")
@@ -864,7 +883,8 @@ dev.off()
 
 lista_siti_rete_nat <- split(rete_nat_00, rete_nat_00$tipo_sito)
 
-# per dataframe della "lista_siti_rete_nat"  mi riesco a calcolare quanti sono i siti per ogni reg biologica
+# per dataframe della "lista_siti_rete_nat" 
+# mi riesco a calcolare quanti sono i siti per ogni reg biologica
 #.... <- .... %>% 
 #  st_drop_geometry() %>% 
 #  group_by(reg_biog) %>% 
@@ -955,36 +975,6 @@ ggplot(a_first_result, aes(x = reorder(protected_area, -total_species), y = risk
                                "Critically Endangered" = "darkred", "Data Deficient" = "darkgrey"))
 dev.off()
 
-# Alcuni tentativi per risolvere gli errori che davano le geometrie di alcuni siti rete natura 00 
-
-# siti_a <- st_make_valid(siti_a)
-# valid_siti_a <- st_is_valid(siti_a)
-# geom_not_valid <- siti_a[!valid_siti_a,]
-# geom_correct <- st_make_valid(geom_not_valid)
-# st_is_valid(geom_correct)
-
-# validity_check <- st_is_valid(siti_a, reason = TRUE)
-# Filtra le geometrie non valide
-# geom_not_valid <- siti_a[!st_is_valid(siti_a),]
-
-# Ottieni i motivi di invalidità
-# invalid_reasons <- validity_check[!st_is_valid(siti_a)]
-# print(invalid_reasons)
-
-# altri modi eper correggere geometrie
-# geom_correct <- st_buffer(geom_not_valid, 0)
-
-# geom_simplified <- st_simplify(geom_not_valid, dTolerance = 0.001)
-
-
-install.packages("mapview")
-library(mapview)
-
-# Visualizza le geometrie non valide
-mapview(geom_not_valid)
-
-# siti_a <- siti_a[-c(31,111,203,206),]
-# valid_siti_a <- st_is_valid(siti_a)
 
 
 ### siti b : ----
@@ -1114,18 +1104,7 @@ ggplot(c_first_result, aes(x = reorder(protected_area, -total_species), y = risk
                                "Critically Endangered" = "darkred", "Data Deficient" = "darkgrey"))
 dev.off()
 
-# siti_c <- st_make_valid(siti_c)
-# valid_siti_c <- st_is_valid(siti_c)
-# geom_not_valid_c <- siti_c[!valid_siti_c,]
-# geom_correct_c <- st_make_valid(geom_not_valid_c)
-# st_is_valid(geom_correct_c)
 
-# siti_c<- siti_c[-c(35,36,62,137,266),]
-
-# LE SPECIE CHE STANNO ONLY_OUT DAI SITI EUAP ----
-# SONO ONLY_OUT ANCHE DAI SITI RETE NAT 00?
-
-#sp_only_out_euap <- unique(df_sp_only_out$Nm_spcs)
 
 # sp_only out sono dentro i siti a?
 sp_only_out_in_a <- sp_only_out_euap %in% sp_in_a$Nm_spcs
@@ -1159,52 +1138,7 @@ species_gbif_rl_total_out <- species_gbif_rl_total_out %>%
 
 unique(species_gbif_rl_total_out$Nm_spcs)
 
-#### 
-#sp_only_out_nat_00 <- as.data.frame(sp_only_out_nat_00)
-#colnames(sp_only_out_nat_00) <- "Nm_spcs"
 
-#sp_only_out_nat_00 <- merge(sp_only_out_nat_00, species_gbif_rl[, c("Nm_spcs","rdlstCt","geometry")], by = "Nm_spcs", all.x = T)
-#sp_only_out_nat_00 <- sp_only_out_nat_00 %>% distinct()
-
-# Estrarre le coordinate x e y dalla colonna geometry
-
-# Rimuovere "POINT (" e ")"
-#prova <- sp_only_out_nat_00 %>%
-# mutate(
-#  geometry_clean = gsub("POINT \\(|\\)", "", geometry),# Rimuovi "POINT (" e ")"
-#   geometry_clean = gsub("c\\(|\\)", "", geometry),  # Rimuovi "c(" e ")"
-#  geometry_clean = gsub(",", " ", geometry_clean),  # Sostituisci "," con spazio
-#  geometry_clean = trimws(geometry_clean)  # Rimuovi spazi aggiuntivi
-#   )
-
-#write.csv(prova, "prova.csv")
-#install.packages("stringr")
-#library(stringr)
-
-#prova <- prova %>%
-# filter(str_count(geometry_clean, " ") == 1)
-
-# Pulizia e estrazione delle coordinate dalla colonna 'geometry'
-#sp_only_out_nat_00 <- sp_only_out_nat_00 %>%
-# mutate(
-# Rimuovere "POINT (" e ")"
-# geometry_clean = gsub("POINT \\(|\\)", "", geometry),
-# geometry_clean = gsub("c\\(|\\)", "", geometry),  # Rimuovi "c(" e ")"
-# Sostituire eventuali virgole con spazi e rimuovere spazi aggiuntivi
-# geometry_clean = gsub(" ", ",", geometry_clean),
-# geometry_clean = trimws(geometry_clean)) 
-
-#sp_only_out_nat_00 <- sp_only_out_nat_00 %>% 
-#separate(geometry_clean, into = c("x", "y"), sep = ",", convert = TRUE)
-
-#sp_only_out_nat_00 <- sp_only_out_nat_00 %>%
-# select(-geometry)
-
-# Convertire il dataframe in un oggetto sf usando le coordinate x e y
-# Supponiamo che il CRS sia EPSG:4326 (WGS84) - sostituisci con il CRS corretto se necessario
-#sp_only_out_nat_00 <- st_as_sf(sp_only_out_nat_00, coords = c("x", "y"), crs = 4326)
-
-#class(sp_only_out_nat_00)
 
 
 ## plot occorrenze delle specie sia fuori dalle aree protette e sia dai siti rete nat 00 ----
