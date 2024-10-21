@@ -1,14 +1,18 @@
-#Progetto Tesi: Importanza delle Aree Protette in Italia
-#Quest' analisi ha l'obiettivo di verificare quante specie della Red List IUCN (italiana) sono contenute all'interno delle aree protette d'Italia (Siti Euap e Siti Rete-Natura 00).
+# Progetto Tesi: Importance of Protected Areas in Italy
+# This analysis aims to ascertain how many IUCN Red List (Italian) species are contained within Italy's protected areas (Euap Sites and Network-Nature 00 Sites).
 
-#install.packages("rgbif")
-#install.packages("mapview")
-#install.packages("CoordinateCleaner")
-#install.packages("countrycode")
-#install.packages("TNRS")
-#install.packages("sf")
+# Install packages ----
+# install.packages("rgbif")
+# install.packages("mapview")
+# install.packages("CoordinateCleaner")
+# install.packages("countrycode")
+# install.packages("sp")
+# install.packages("maps")
+# install.packages("TNRS")
+# install.packages("sf")
+# install.packages("styler")
 
-# Load packages----
+# Load packages ----
 library(rgbif)
 library(mapview)
 library(countrycode)
@@ -18,7 +22,7 @@ library(tidyr)
 library(ggplot2)
 library(sp)
 library(maps)
-mapdata
+#mapdata
 library(TNRS)
 library(sf)
 library(styler)
@@ -481,7 +485,8 @@ sp_only_in_low_protect <- df_sp_only_in %>%
   ) %>%
   arrange(num_areepr)
 
-
+rm(names_correct, sp_condivise_cat_risk, sp_in_aree_pr_cat_risk,
+   sp_only_in_cat_risk, sp_only_out_cat_risk, sp_out_aree_pr_cat_risk)
 
 # ANALYSIS FOR EACH TYPE OF PROTECTED AREA ----
 lista_aree_pr <- split(siti_protet, siti_protet$tipo)
@@ -517,16 +522,16 @@ sp_in_pnr <- results_typearee_sp_in[[3]]
 sp_in_rnr <- results_typearee_sp_in[[4]]
 sp_in_aanp <- results_typearee_sp_in[[5]]
 
-unique(sp_in_aanp$Nm_spcs) # Get the total number of species for each type of protected area
+unique(sp_in_rns$Nm_spcs) # Get the total number of species for each type of protected area
 
 
 # create function that groups by Red List risk category. For each category, it calculates how many distinct species there are
 # and how many total observations or occurrences there are for those species
 function_sp_in_cat_risk <- function(specie_in_areepr) {
   df_sp_in_aggreg <- specie_in_areepr |>
-    group_by(rdlstCt) |>
+    group_by(redlistCategory) |>
     summarise(
-      num_species = n_distinct(Nm_spcs),
+      num_species = n_distinct(Name_species),
       num_occorrenze = n()
     ) |>
     st_drop_geometry()
@@ -547,7 +552,7 @@ sp_in_aanp_aggr_catrisk <- list_df_sp_in_aggr_catrisk[[5]]
 count_specie <- function(specie_in_areepr) {
   count_specie_areepr <- specie_in_areepr |>
     group_by(protected_area) |>
-    summarise(num_species = n_distinct(Nm_spcs)) |>
+    summarise(num_species = n_distinct(Name_species)) |>
     arrange(desc(num_species))
   return(count_specie_areepr)
 }
@@ -564,15 +569,15 @@ num_sp_in_aanp <- list_df_sp_in_num_type[[5]]
 
 # creates function that show for each protected area, the total number of species
 # and the number of species for each Red List risk category.
-prova_funct <- function(specie_in_areepr) {
+full_function <- function(specie_in_areepr) {
   species_count <- specie_in_areepr |>
     group_by(protected_area) |>
-    summarise(total_species = n_distinct(Nm_spcs))
+    summarise(total_species = n_distinct(Name_species))
 
   # Count of species by risk category
   risk_count <- specie_in_areepr |>
-    group_by(protected_area, rdlstCt) |>
-    summarise(risk_species = n_distinct(Nm_spcs)) # %>%
+    group_by(protected_area, redlistCategory) |>
+    summarise(risk_species = n_distinct(Name_species)) # %>%
   # spread(key = rdlstCt, value = risk_species, fill = 0)
 
   # Merge the two dataframes
@@ -582,12 +587,13 @@ prova_funct <- function(specie_in_areepr) {
   return(result)
 }
 
-lista_prova <- lapply(results_typearee_sp_in, prova_funct)
-rns_prova <- lista_prova[[1]]
-pnr_prova <- lista_prova[[3]]
-rnr_prova <- lista_prova[[4]]
-aanp_prova <- lista_prova[[5]]
-pnz_prova <- lista_prova[[2]]
+
+lista_full <- lapply(results_typearee_sp_in, full_function)
+rns_full <- lista_full[[1]]
+pnr_full <- lista_full[[3]]
+rnr_full <- lista_full[[4]]
+aanp_full <- lista_full[[5]]
+pnz_full <- lista_full[[2]]
 
 # Parco Nazionale dell'Arcipelago di La Maddalena does not contain species listed in the Red List
 
@@ -619,16 +625,16 @@ num_sp_in_pnz <- num_sp_in_pnz |>
 
 
 # Barplot showing the number of species categorized by risk category
-pnz_prova$rdlstCt <- factor(pnz_prova$rdlstCt,
+pnz_full$redlistCategory <- factor(pnz_full$redlistCategory,
   levels = c(
     "Critically Endangered", "Endangered",
     "Vulnerable", "Near Threatened", "Least Concern", "Data Deficient"
   )
 )
 
-pnz_prova <- merge(pnz_prova, pnz[, c("protected_area", "sigle")], by = "protected_area", all.x = TRUE)
+pnz_full <- merge(pnz_full, pnz[, c("protected_area", "sigle")], by = "protected_area", all.x = TRUE)
 
-ggplot(pnz_prova, aes(x = reorder(sigle, -total_species), y = risk_species, fill = rdlstCt)) +
+ggplot(pnz_full, aes(x = reorder(sigle, -total_species), y = risk_species, fill = redlistCategory)) +
   geom_bar(stat = "identity", width = 0.9) +
   labs(x = "National Park", y = "Number of species", fill = "Categoria Lista Rossa") +
   theme(
@@ -657,17 +663,17 @@ num_sp_in_rns <- num_sp_in_rns |>
 
 
 # Barplot displaying the number of species divided by risk category from the dataset
-rns_prova$rdlstCt <- factor(rns_prova$rdlstCt,
+rns_full <- factor(rns_full$redlistCategory,
   levels = c(
     "Critically Endangered", "Endangered",
     "Vulnerable", "Near Threatened", "Least Concern", "Data Deficient"
   )
 )
 
-rns_prova <- rns_prova |>
+rns_full <- rns_full |>
   filter(total_species >= 10)
 
-ggplot(rns_prova, aes(x = reorder(protected_area, -total_species), y = risk_species, fill = rdlstCt)) +
+ggplot(rns_full, aes(x = reorder(protected_area, -total_species), y = risk_species, fill = redlistCategory)) +
   geom_bar(stat = "identity") +
   labs(x = "Protected Area", y = "Number of species ", fill = "Categoria Lista Rossa") +
   theme(
@@ -697,17 +703,17 @@ num_sp_in_pnr <- num_sp_in_pnr |>
 
 
 # Barplot showing the number of species categorized by risk category
-pnr_prova$rdlstCt <- factor(pnr_prova$rdlstCt,
+pnr_full$redlistCategory <- factor(pnr_full$redlistCategory,
   levels = c(
     "Critically Endangered", "Endangered",
     "Vulnerable", "Near Threatened", "Least Concern", "Data Deficient"
   )
 )
 
-pnr_prova <- pnr_prova |>
+pnr_full <- pnr_full |>
   filter(total_species >= 50)
 
-ggplot(pnr_prova, aes(x = reorder(protected_area, -total_species), y = risk_species, fill = rdlstCt)) +
+ggplot(pnr_full, aes(x = reorder(protected_area, -total_species), y = risk_species, fill = redlistCategory)) +
   geom_bar(stat = "identity") +
   labs(x = "Parco Regionale", y = "Numero di specie", fill = "Categoria Lista Rossa") +
   theme(
@@ -738,17 +744,17 @@ num_sp_in_rnr <- num_sp_in_rnr |>
 
 
 # Barplot displaying the number of species divided by risk category from the dataset
-rnr_prova$rdlstCt <- factor(rnr_prova$rdlstCt,
+rnr_full$redlistCategory <- factor(rnr_full$redlistCategory,
   levels = c(
     "Critically Endangered", "Endangered",
     "Vulnerable", "Near Threatened", "Least Concern", "Data Deficient"
   )
 )
 
-rnr_prova <- rnr_prova |>
+rnr_full <- rnr_full |>
   filter(total_species >= 20)
 
-ggplot(rnr_prova, aes(x = reorder(protected_area, -total_species), y = risk_species, fill = rdlstCt)) +
+ggplot(rnr_full, aes(x = reorder(protected_area, -total_species), y = risk_species, fill = redlistCategory)) +
   geom_bar(stat = "identity") +
   labs(x = "Riserva Naturale Regionale", y = "Numero di specie", fill = "Categoria Lista Rossa") +
   theme(
@@ -778,17 +784,17 @@ num_sp_in_aanp <- num_sp_in_aanp |>
 
 
 # Barplot showing the number of species categorized by risk category
-aanp_prova$rdlstCt <- factor(aanp_prova$rdlstCt,
+aanp_full$redlistCategory <- factor(aanp_full$redlistCategory,
   levels = c(
     "Critically Endangered", "Endangered",
     "Vulnerable", "Near Threatened", "Least Concern", "Data Deficient"
   )
 )
 
-aanp_prova <- aanp_prova |>
+aanp_full <- aanp_full |>
   filter(total_species >= 10)
 
-ggplot(aanp_prova, aes(x = reorder(protected_area, -total_species), y = risk_species, fill = rdlstCt)) +
+ggplot(aanp_full, aes(x = reorder(protected_area, -total_species), y = risk_species, fill = redlistCategory)) +
   geom_bar(stat = "identity") +
   labs(x = "Altre Riserve Naturali", y = "Numero di specie", fill = "Categoria Lista Rossa") +
   theme(
@@ -807,10 +813,12 @@ dev.off()
 # Identifying functions
 functions <- ls()[sapply(ls(), function(x) is.function(get(x)))]
 
+
 # Remove functions
 rm(list = functions)
 
-
+#rm(list_df_sp_in_aggr_catrisk, list_df_sp_in_num_type,
+#              lista_full, pnz, pnz_full, results_typearee_sp_in)
 
 
 # Siti Rete Natura 00 ----
@@ -870,14 +878,14 @@ lista_siti_rete_nat <- split(rete_nat_00, rete_nat_00$tipo_sito)
 ## QUANTE SPECIE ----
 species_gbif_rl$index_sp <- 1:nrow(species_gbif_rl)
 
-function_sp_sititype <- function(sito_nat) {
+function_sp_sititype <- function(sito_nat){
   sp_in <- st_within(species_gbif_rl, sito_nat)
   sp_in <- as.data.frame(sp_in)
   colnames(sp_in)[1] <- "index_sp"
   colnames(sp_in)[2] <- "protected_area"
   sp_in$protected_area <- sito_nat$denominazi[sp_in$protected_area]
   sp_in <- left_join(sp_in, species_gbif_rl, by = "index_sp")
-  sp_in <- sp_in[, -1]
+  sp_in <- sp_in[,-1]
   colnames(sp_in)[5] <- "occurence_gbifID"
   sp_in <- sp_in[, c(5, 1:4, 6:ncol(sp_in))]
   sp_in <- sp_in[, c(1, 3, 2, 4:ncol(sp_in))]
@@ -903,48 +911,48 @@ sp_in_a <- sp_in_a |>
 
 sp_in_a <- merge(sp_in_a, siti_a[, c("denominazi", "reg_biog")], by = "denominazi", all.x = T)
 
-unique(sp_in_a$Nm_spcs) # 578
+unique(sp_in_a$Name_species) # 578
 
 a_num_sp_reg_bio <- sp_in_a |>
   st_drop_geometry() |>
   group_by(reg_biog) |>
-  summarise(num_species = n_distinct(Nm_spcs))
+  summarise(num_species = n_distinct(Name_species))
 
 a_num_sp_cat_risk <- sp_in_a |>
   st_drop_geometry() |>
-  group_by(rdlstCt) |>
-  summarise(num_species = n_distinct(Nm_spcs))
+  group_by(redlistCategory) |>
+  summarise(num_species = n_distinct(Name_species))
 
 
 # Count of species per protected area
 a_species_count <- sp_in_a |>
   group_by(protected_area) |>
-  summarise(total_species = n_distinct(Nm_spcs)) |>
-  arrange(desc(num_species))
+  summarise(total_species = n_distinct(Name_species)) |>
+  arrange(desc(total_species))
 
 # Count of species by risk category
 a_risk_count <- sp_in_a |>
-  group_by(protected_area, rdlstCt) |>
-  summarise(risk_species = n_distinct(Nm_spcs)) # %>%
+  group_by(protected_area, redlistCategory) |>
+  summarise(risk_species = n_distinct(Name_species)) # %>%
 # spread(key = rdlstCt, value = risk_species, fill = 0)
 
 # Merge the two dataframes
 a_result <- left_join(a_risk_count, a_species_count, by = "protected_area")
-a_result <- a_result %>%
+a_result <- a_result |> 
   arrange(desc(total_species))
 
 # Plot of the top protected sites with 50+ species
 
 a_first_result <- a_result[1:58, ]
 
-a_first_result$rdlstCt <- factor(a_first_result$rdlstCt,
+a_first_result$redlistCategory <- factor(a_first_result$redlistCategory,
   levels = c(
     "Critically Endangered", "Endangered",
     "Vulnerable", "Near Threatened", "Least Concern", "Data Deficient"
   )
 )
 
-ggplot(a_first_result, aes(x = reorder(protected_area, -total_species), y = risk_species, fill = rdlstCt)) +
+ggplot(a_first_result, aes(x = reorder(protected_area, -total_species), y = risk_species, fill = redlistCategory)) +
   geom_bar(stat = "identity") +
   labs(x = "Siti Protetti tipo A", y = "Numero di specie", fill = "Categoria Lista Rossa") +
   theme(
@@ -976,28 +984,28 @@ sp_in_b <- sp_in_b |>
 
 sp_in_b <- merge(sp_in_b, siti_b[, c("denominazi", "reg_biog")], by = "denominazi", all.x = T)
 
-unique(sp_in_b$Nm_spcs) # 650
+unique(sp_in_b$Name_species) # 650
 
 b_num_sp_reg_bio <- sp_in_b |>
   st_drop_geometry() |>
   group_by(reg_biog) |>
-  summarise(num_species = n_distinct(Nm_spcs))
+  summarise(num_species = n_distinct(Name_species))
 
 b_num_sp_cat_risk <- sp_in_b |>
   st_drop_geometry() |>
-  group_by(rdlstCt) |>
-  summarise(num_species = n_distinct(Nm_spcs))
+  group_by(redlistCategory) |>
+  summarise(num_species = n_distinct(Name_species))
 
 # Count of species per protected area
 b_species_count <- sp_in_b |>
   group_by(protected_area) |>
-  summarise(total_species = n_distinct(Nm_spcs)) |>
+  summarise(total_species = n_distinct(Name_species)) |>
   arrange(desc(total_species))
 
 # Count of species per risk category
 b_risk_count <- sp_in_b |>
-  group_by(protected_area, rdlstCt) |>
-  summarise(risk_species = n_distinct(Nm_spcs)) # %>%
+  group_by(protected_area, redlistCategory) |>
+  summarise(risk_species = n_distinct(Name_species)) # %>%
 # spread(key = rdlstCt, value = risk_species, fill = 0)
 
 # Merge the two dataframes
@@ -1009,14 +1017,14 @@ b_result <- b_result |>
 
 b_first_result <- b_result[1:59, ]
 
-b_first_result$rdlstCt <- factor(b_first_result$rdlstCt,
+b_first_result$redlistCategory <- factor(b_first_result$redlistCategory,
   levels = c(
     "Critically Endangered", "Endangered",
     "Vulnerable", "Near Threatened", "Least Concern", "Data Deficient"
   )
 )
 
-ggplot(b_first_result, aes(x = reorder(protected_area, -total_species), y = risk_species, fill = rdlstCt)) +
+ggplot(b_first_result, aes(x = reorder(protected_area, -total_species), y = risk_species, fill = redlistCategory)) +
   geom_bar(stat = "identity") +
   labs(x = "Siti Protetti tipo A", y = "Numero di specie", fill = "Categoria Lista Rossa") +
   theme(
@@ -1047,28 +1055,28 @@ sp_in_c <- sp_in_c |>
 
 sp_in_c <- merge(sp_in_c, siti_c[, c("denominazi", "reg_biog")], by = "denominazi", all.x = T)
 
-unique(sp_in_c$Nm_spcs) # 492
+unique(sp_in_c$Name_species) # 492
 
 c_num_sp_reg_bio <- sp_in_c |>
   st_drop_geometry() |>
   group_by(reg_biog) |>
-  summarise(num_species = n_distinct(Nm_spcs))
+  summarise(num_species = n_distinct(Name_species))
 
 c_num_sp_cat_risk <- sp_in_c |>
   st_drop_geometry() |>
-  group_by(rdlstCt) |>
-  summarise(num_species = n_distinct(Nm_spcs))
+  group_by(redlistCategory) |>
+  summarise(num_species = n_distinct(Name_species))
 
 # Count the number of species for each protected area
 c_species_count <- sp_in_c |>
   group_by(protected_area) |>
-  summarise(total_species = n_distinct(Nm_spcs)) |>
+  summarise(total_species = n_distinct(Name_species)) |>
   arrange(desc(total_species))
 
 # Count the number of species for each risk category
 c_risk_count <- sp_in_c |>
-  group_by(protected_area, rdlstCt) |>
-  summarise(risk_species = n_distinct(Nm_spcs)) # %>%
+  group_by(protected_area, redlistCategory) |>
+  summarise(risk_species = n_distinct(Name_species)) # %>%
 # spread(key = rdlstCt, value = risk_species, fill = 0)
 
 # Merge the two dataframes
@@ -1080,14 +1088,14 @@ c_result <- c_result |>
 
 c_first_result <- c_result[1:26, ]
 
-c_first_result$rdlstCt <- factor(c_first_result$rdlstCt,
+c_first_result$redlistCategory <- factor(c_first_result$redlistCategory,
   levels = c(
     "Critically Endangered", "Endangered",
     "Vulnerable", "Near Threatened", "Least Concern", "Data Deficient"
   )
 )
 
-ggplot(c_first_result, aes(x = reorder(protected_area, -total_species), y = risk_species, fill = rdlstCt)) +
+ggplot(c_first_result, aes(x = reorder(protected_area, -total_species), y = risk_species, fill = redlistCategory)) +
   geom_bar(stat = "identity") +
   labs(x = "Siti Protetti tipo A", y = "Numero di specie", fill = "Categoria Lista Rossa") +
   theme(
@@ -1102,19 +1110,20 @@ ggplot(c_first_result, aes(x = reorder(protected_area, -total_species), y = risk
 dev.off()
 
 
+sp_only_out_euap <- unique(df_sp_only_out$Name_species)
 
 # Species in sp_only_out are located within site A?
-sp_only_out_in_a <- sp_only_out_euap %in% sp_in_a$Nm_spcs
+sp_only_out_in_a <- sp_only_out_euap %in% sp_in_a$Name_species
 
 sp_only_out_in_a <- sp_only_out_euap[sp_only_out_in_a]
 
 # Species in sp_only_out are located within site B?
-sp_only_out_in_b <- sp_only_out_euap %in% sp_in_b$Nm_spcs
+sp_only_out_in_b <- sp_only_out_euap %in% sp_in_b$Name_species
 
 sp_only_out_in_b <- sp_only_out_euap[sp_only_out_in_b]
 
 # Species in sp_only_out are located within site C?
-sp_only_out_in_c <- sp_only_out_euap %in% sp_in_c$Nm_spcs
+sp_only_out_in_c <- sp_only_out_euap %in% sp_in_c$Name_species
 
 sp_only_out_in_c <- sp_only_out_euap[sp_only_out_in_c]
 
@@ -1126,23 +1135,22 @@ sp_only_out_in_nat_00 <- unique(c(sp_only_out_in_a, sp_only_out_in_b, sp_only_ou
 sp_only_out_nat_00 <- setdiff(sp_only_out_euap, sp_only_out_in_nat_00)
 
 species_gbif_rl_total_out <- species_gbif_rl |>
-  filter(Nm_spcs %in% sp_only_out_nat_00)
+  filter(Name_species %in% sp_only_out_nat_00)
 
 class(species_gbif_rl_total_out)
 
 species_gbif_rl_total_out <- species_gbif_rl_total_out |>
   distinct()
 
-unique(species_gbif_rl_total_out$Nm_spcs)
+unique(species_gbif_rl_total_out$Name_species)
 
+unique(species_gbif_rl_total_out$redlistCategory)
 
-
-
-# # Plot occurrences of species both outside protected areas and from Natura 2000 sites ----
+# Plot occurrences of species both outside protected areas and from Natura 2000 sites ----
 
 ita_map <- map_data("italy")
 
-species_gbif_rl_total_out$rdlstCt <- factor(species_gbif_rl_total_out$rdlstCt,
+species_gbif_rl_total_out$redlistCategory <- factor(species_gbif_rl_total_out$redlistCategory,
   levels = c(
     "Critically Endangered", "Endangered",
     "Vulnerable", "Near Threatened",
@@ -1156,7 +1164,7 @@ ggplot() +
   geom_polygon(data = ita_map, aes(x = long, y = lat, group = group), colour = "gray50", fill = "gray70", alpha = 0.5) +
   geom_sf(data = siti_protet, color = NA, fill = "darkgreen", alpha = 0.4, size = 0.1) +
   geom_sf(data = rete_nat_00, color = NA, fill = "chartreuse2", alpha = 0.4, size = 0.1) +
-  geom_sf(data = species_gbif_rl_total_out, aes(color = rdlstCt), size = 0.8) +
+  geom_sf(data = species_gbif_rl_total_out, aes(color = redlistCategory), size = 0.8) +
   scale_color_manual(
     name = "RedList Category",
     values = c(
