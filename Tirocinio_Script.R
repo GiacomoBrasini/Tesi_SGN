@@ -38,7 +38,7 @@ gbif_occurrences <- occ_download(
   pred_gte("coordinateUncertaintyInMeters", 0),
   pred_lte("coordinateUncertaintyInMeters", 5000),
   format = "SIMPLE_CSV",
-  user = "giacomo_brasini", pwd = "Porta!99", email = "giakbraso11@gmail.com"
+  user = "user", pwd = "pwdw", email = "email"
 )
 
 gbif_status <- occ_download_wait(gbif_occurrences[1])
