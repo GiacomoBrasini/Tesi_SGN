@@ -1,5 +1,5 @@
 # Progetto Tesi: Importance of Protected Areas in Italy
-# This analysis aims to ascertain how many IUCN Red List (Italian) species are contained within Italy's protected areas (Euap Sites and Network-Nature 00 Sites).
+# This analysis aims to ascertain how many IUCN Red List (Italian) species are contained within Italy's protected areas (Euap Sites).
 
 # Install packages ----
 # install.packages("rgbif")
@@ -38,7 +38,7 @@ gbif_occurrences <- occ_download(
   pred_gte("coordinateUncertaintyInMeters", 0),
   pred_lte("coordinateUncertaintyInMeters", 5000),
   format = "SIMPLE_CSV",
-  user = "giacomo_brasini", pwd = "Porta!99", email = "giakbraso11@gmail.com"
+  user = "user", pwd = "pwd", email = "email"
 )
 
 gbif_status <- occ_download_wait(gbif_occurrences[1])
@@ -613,17 +613,6 @@ dev.off()
 rm(list = ls())
 
 
-# capire se serve o meno ----
-## QUALI SP SONO CONTENUTE IN MENO AREE PROTETTE? ----
-### Sp DENTRO ----
-sp_in_low_protect <- sp_in_aree_pr_df %>%
-  group_by(Nm_spcs) %>%
-  summarise(
-    num_areepr = n_distinct(protected_area),
-    num_occorrenze = n()
-  ) %>%
-  arrange(num_areepr)
-
 ### Sp SOLO DENTRO ----
 sp_only_in_low_protect <- df_sp_only_in %>%
   group_by(Nm_spcs) %>%
@@ -748,7 +737,6 @@ aanp_full <- lista_full[[5]]
 
 
 # Some protected areas do not contain species from the Red List...
-
 
 
 ## plots Parchi Nazionali ----
@@ -983,405 +971,244 @@ functions <- ls()[sapply(ls(), function(x) is.function(get(x)))]
 # Remove functions
 rm(list = functions)
 
-
-
-
-# Siti Rete Natura 00 ----
-sf_use_s2(FALSE)  # 'sf' package S2 for handling spherical geometries
-rete_nat_00 <- st_read("C:/Project_tirocinio/data/Rete_Nat_2000.shp")
-rete_nat_00 <- st_make_valid(rete_nat_00)
-# write.csv(rete_nat_00, "rete_nat_00.csv")
-# st_write(rete_nat_00,"rete_nat_00.shp")
-
-st_crs(rete_nat_00) == st_crs(siti_protet)
-
-summary(rete_nat_00)
-unique(rete_nat_00$tipo_sito)
-
-# ZPS = site type A; SIC-ZSC = site type B; SIC-ZSC coinciding with ZPS = site type C
-# ZPS: Special Protection Areas established by the Birds Directive
-# ZSC: Special Areas of Conservation from the Habitats Directive
-
-unique(rete_nat_00$reg_biog)
-
-# Total area
-rete_nat_00$hectares <- as.numeric(rete_nat_00$hectares)
-sup_totale <- round(sum(rete_nat_00$hectares), 3)
-
-rete_nat_aggr <- rete_nat_00 |>
-  st_drop_geometry() |>
-  group_by(tipo_sito) |>
-  summarise(num_sit = n(), tot_area = round(sum(hectares), 3))
-
-# grafico siti rete nat 2000 suddivisi per tipologia
-rete_nat_00$tipo_sito <- factor(rete_nat_00$tipo_sito,
-  levels = c("A", "B", "C")
-)
-
-plot_rete_nat_00 <- ggplot() +
-  # coord_fixed() +
-  geom_polygon(data = ita_map, aes(x = long, y = lat, group = group), colour = "gray50", fill = "gray70", alpha = 0.5) +
-  geom_sf(data = rete_nat_00, aes(fill = tipo_sito), color = NA) +
-  scale_fill_manual(
-    values = c("A" = "red", "B" = "orange", "C" = "yellow"),
-    name = "Tipologia Sito Protetto",
-    labels = c("ZPS", "SIC-ZSC", "SIC-ZSC ≡ ZPS")
-  ) +
-  theme_minimal()
-plot_rete_nat_00
-dev.off()
-
-
-lista_siti_rete_nat <- split(rete_nat_00, rete_nat_00$tipo_sito)
-
-# per dataframe della "lista_siti_rete_nat"
-# mi riesco a calcolare quanti sono i siti per ogni reg biologica
-# .... <- .... %>%
-#  st_drop_geometry() %>%
-#  group_by(reg_biog) %>%
-#  summarise(num_sit = n())
-
-
-## HOW MUCH SPECIES ----
-species_gbif_rl$index_sp <- 1:nrow(species_gbif_rl)
-
-function_sp_sititype <- function(sito_nat){
-  sp_in <- st_within(species_gbif_rl, sito_nat)
-  sp_in <- as.data.frame(sp_in)
-  colnames(sp_in)[1] <- "index_sp"
-  colnames(sp_in)[2] <- "protected_area"
-  sp_in$protected_area <- sito_nat$denominazi[sp_in$protected_area]
-  sp_in <- left_join(sp_in, species_gbif_rl, by = "index_sp")
-  sp_in <- sp_in[,-1]
-  colnames(sp_in)[5] <- "occurence_gbifID"
-  sp_in <- sp_in[, c(5, 1:4, 6:ncol(sp_in))]
-  sp_in <- sp_in[, c(1, 3, 2, 4:ncol(sp_in))]
-  return(sp_in)
-}
-
-results_typesiti_sp_in <- lapply(lista_siti_rete_nat, function_sp_sititype)
-
-
-### siti a ----
-siti_a <- rete_nat_00 |>
-  filter(tipo_sito == "A")
-
-siti_a_reg_bio <- siti_a |>
-  st_drop_geometry() |>
-  group_by(reg_biog) |>
-  summarise(num_sit = n())
-
-sp_in_a <- results_typesiti_sp_in[[1]]
-
-sp_in_a <- sp_in_a |>
-  rename(denominazi = protected_area)
-
-sp_in_a <- merge(sp_in_a, siti_a[, c("denominazi", "reg_biog")], by = "denominazi", all.x = T)
-
-unique(sp_in_a$Name_species) # 533
-unique(sp_in_a$denominazi) # 246 (su 282)
-
-a_num_sp_reg_bio <- sp_in_a |>
-  st_drop_geometry() |>
-  group_by(reg_biog) |>
-  summarise(num_species = n_distinct(Name_species))
-
-a_num_sp_cat_risk <- sp_in_a |>
-  st_drop_geometry() |>
-  group_by(redlistCategory) |>
-  summarise(num_species = n_distinct(Name_species))
-
-
-# Count of species per protected area
-a_species_count <- sp_in_a |>
-  group_by(denominazi) |>
-  summarise(total_species = n_distinct(Name_species)) |>
-  arrange(desc(total_species))
-
-# Count of species by risk category
-a_risk_count <- sp_in_a |>
-  group_by(denominazi, redlistCategory) |>
-  summarise(risk_species = n_distinct(Name_species)) # %>%
-# spread(key = rdlstCt, value = risk_species, fill = 0)
-
-# Merge the two dataframes
-a_result <- left_join(a_risk_count, a_species_count, by = "denominazi")
-a_result
-a_result <- a_result |> 
-  arrange(desc(total_species))
-
-# Plot of the top protected sites with 70+ species
-
-a_first_result <- a_result |> 
-  filter(total_species >= 70 | redlistCategory %in% c("Endangered", "Critically Endangered"))
-
-a_first_result$redlistCategory <- factor(a_first_result$redlistCategory,
-  levels = c(
-    "Critically Endangered", "Endangered",
-    "Vulnerable", "Near Threatened", "Least Concern", "Data Deficient"
-  )
-)
-
-geom_bar_sitiA <- ggplot(a_first_result, aes(x = reorder(denominazi, -total_species), y = risk_species, fill = redlistCategory)) +
-  geom_bar(stat = "identity") +
-  labs(x = "Siti Protetti tipo A", y = "Numero di specie", fill = "Red List Category") +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    panel.background = element_rect(fill = "whitesmoke", colour = NA)
-  ) +
-  scale_fill_manual(values = c(
-    "Least Concern" = "green4", "Near Threatened" = "yellow",
-    "Vulnerable" = "orange", "Endangered" = "red",
-    "Critically Endangered" = "darkred", "Data Deficient" = "darkgrey"
-  ))
-geom_bar_sitiA
-dev.off()
-
-
-
-### siti b ----
-siti_b <- rete_nat_00 |>
-  filter(tipo_sito == "B")
-
-siti_b_reg_bio <- siti_b |>
-  st_drop_geometry() |>
-  group_by(reg_biog) |>
-  summarise(num_sit = n())
-
-sp_in_b <- results_typesiti_sp_in[[2]]
-
-sp_in_b <- sp_in_b |>
-  rename(denominazi = protected_area)
-
-sp_in_b <- merge(sp_in_b, siti_b[, c("denominazi", "reg_biog")], by = "denominazi", all.x = T)
-
-unique(sp_in_b$Name_species) # 576 species
-length(unique(sp_in_b$denominazi))  # 1479 (su 2003)
-
-b_num_sp_reg_bio <- sp_in_b |>
-  st_drop_geometry() |>
-  group_by(reg_biog) |>
-  summarise(num_species = n_distinct(Name_species))
-
-b_num_sp_cat_risk <- sp_in_b |>
-  st_drop_geometry() |>
-  group_by(redlistCategory) |>
-  summarise(num_species = n_distinct(Name_species))
-
-# Count of species per protected area
-b_species_count <- sp_in_b |>
-  group_by(denominazi) |>
-  summarise(total_species = n_distinct(Name_species)) |>
-  arrange(desc(total_species))
-
-# Count of species per risk category
-b_risk_count <- sp_in_b |>
-  group_by(denominazi, redlistCategory) |>
-  summarise(risk_species = n_distinct(Name_species)) # %>%
-# spread(key = rdlstCt, value = risk_species, fill = 0)
-
-# Merge the two dataframes
-b_result <- left_join(b_risk_count, b_species_count, by = "denominazi")
-b_result <- b_result |>
-  arrange(desc(total_species))
-
-# Plot of the top protected sites with 50+ species
-
-b_first_result <- b_result |> 
-  filter(total_species >= 50 | redlistCategory %in% c("Endangered", "Critically Endangered"))
-
-b_first_result$redlistCategory <- factor(b_first_result$redlistCategory,
-  levels = c(
-    "Critically Endangered", "Endangered",
-    "Vulnerable", "Near Threatened", "Least Concern", "Data Deficient"
-  )
-)
-
-geom_bar_sitiB <- ggplot(b_first_result, aes(x = reorder(denominazi, -total_species), y = risk_species, fill = redlistCategory)) +
-  geom_bar(stat = "identity") +
-  labs(x = "Siti Protetti tipo A", y = "Numero di specie", fill = "Categoria Lista Rossa") +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    panel.background = element_rect(fill = "whitesmoke", colour = NA)
-  ) +
-  scale_fill_manual(values = c(
-    "Least Concern" = "green4", "Near Threatened" = "yellow",
-    "Vulnerable" = "orange", "Endangered" = "red",
-    "Critically Endangered" = "darkred", "Data Deficient" = "darkgrey"
-  ))
-geom_bar_sitiB
-dev.off()
-
-
-### siti c ----
-siti_c <- rete_nat_00 |>
-  filter(tipo_sito == "C")
-
-siti_c_reg_bio <- siti_c |>
-  st_drop_geometry() |>
-  group_by(reg_biog) |>
-  summarise(num_sit = n())
-
-sp_in_c <- results_typesiti_sp_in[[3]]
-
-sp_in_c <- sp_in_c |>
-  rename(denominazi = protected_area)
-
-sp_in_c <- merge(sp_in_c, siti_c[, c("denominazi", "reg_biog")], by = "denominazi", all.x = T)
-
-unique(sp_in_c$Name_species) # 490
-unique(sp_in_c$denominazi)  # 309 (su 361)
-
-c_num_sp_reg_bio <- sp_in_c |>
-  st_drop_geometry() |>
-  group_by(reg_biog) |>
-  summarise(num_species = n_distinct(Name_species))
-
-c_num_sp_cat_risk <- sp_in_c |>
-  st_drop_geometry() |>
-  group_by(redlistCategory) |>
-  summarise(num_species = n_distinct(Name_species))
-
-# Count the number of species for each protected area
-c_species_count <- sp_in_c |>
-  group_by(denominazi) |>
-  summarise(total_species = n_distinct(Name_species)) |>
-  arrange(desc(total_species))
-
-# Count the number of species for each risk category
-c_risk_count <- sp_in_c |>
-  group_by(denominazi, redlistCategory) |>
-  summarise(risk_species = n_distinct(Name_species)) # %>%
-# spread(key = rdlstCt, value = risk_species, fill = 0)
-
-# Merge the two dataframes
-c_result <- left_join(c_risk_count, c_species_count, by = "denominazi")
-c_result <- c_result |>
-  arrange(desc(total_species))
-
-# Plot of the top protected sites with 55+ species
-
-c_first_result <- c_result |> 
-  filter(total_species >= 55 | redlistCategory %in% c("Endangered", "Critically Endangered"))
-
-c_first_result$redlistCategory <- factor(c_first_result$redlistCategory,
-  levels = c(
-    "Critically Endangered", "Endangered",
-    "Vulnerable", "Near Threatened", "Least Concern", "Data Deficient"
-  )
-)
-
-geom_bar_sitiC <- ggplot(c_first_result, aes(x = reorder(denominazi, -total_species), y = risk_species, fill = redlistCategory)) +
-  geom_bar(stat = "identity") +
-  labs(x = "Siti Protetti tipo A", y = "Numero di specie", fill = "Categoria Lista Rossa") +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    panel.background = element_rect(fill = "whitesmoke", colour = NA)
-  ) +
-  scale_fill_manual(values = c(
-    "Least Concern" = "green4", "Near Threatened" = "yellow",
-    "Vulnerable" = "orange", "Endangered" = "red",
-    "Critically Endangered" = "darkred", "Data Deficient" = "darkgrey"
-  ))
-geom_bar_sitiC
-dev.off()
-
-# cleaning the environment
-
-# rm(a_first_result, a_num_sp_cat_risk, a_num_sp_reg_bio, a_result, a_species_count, a_risk_count)
-# rm(b_first_result, b_num_sp_cat_risk, b_num_sp_reg_bio, b_result, b_species_count, b_risk_count)
-# rm(c_first_result, c_num_sp_cat_risk, c_num_sp_reg_bio, c_result, c_species_count, c_risk_count)
-# rm(geom_bar_sitiA, geom_bar_sitiB, geom_bar_sitiC, plot_3, plot_rete_nat_00,
-#    siti_a_reg_bio, siti_b_reg_bio, siti_c_reg_bio, sup_totale)
-
-
-# Plot occurrences of species both outside protected areas and from Natura 2000 sites ----
-
-sp_only_out_euap <- unique(df_sp_only_out$Name_species)
-
-# Species in sp_only_out are located within site A?
-sp_only_out_in_a <- sp_only_out_euap %in% sp_in_a$Name_species
-
-sp_only_out_in_a <- sp_only_out_euap[sp_only_out_in_a] # 28 species
-
-# Species in sp_only_out are located within site B?
-sp_only_out_in_b <- sp_only_out_euap %in% sp_in_b$Name_species
-
-sp_only_out_in_b <- sp_only_out_euap[sp_only_out_in_b] # 39 species
-
-# Species in sp_only_out are located within site C?
-sp_only_out_in_c <- sp_only_out_euap %in% sp_in_c$Name_species
-
-sp_only_out_in_c <- sp_only_out_euap[sp_only_out_in_c] # 12 species
-
-
-sp_only_out_in_nat_00 <- unique(c(sp_only_out_in_a, sp_only_out_in_b, sp_only_out_in_c))
-
-# Out of the 112 species in sp_only_out euap, 53 are located within Natura 2000 sites!
-
-# Which species are they?
-
-sp_only_out_nat_00 <- setdiff(sp_only_out_euap, sp_only_out_in_nat_00) # 53 species
-
-# The setdiff() function will return the elements present in `sp_only_out_euap`
-# that are not present in `sp_only_out_in_nat_00`
-
-species_gbif_rl_total_out <- species_gbif_rl |> # Filter "species_gbif_rl" to keep only the rows 
-  filter(Name_species %in% sp_only_out_nat_00) # where "Name_species" is in "sp_only_out_nat_00"
-
-class(species_gbif_rl_total_out)
-
-# Remove duplicate rows from species_gbif_rl_total_out
-
-species_gbif_rl_total_out <- species_gbif_rl_total_out |>
-  distinct()
-
-unique(species_gbif_rl_total_out$Name_species) # 59 species 
-
-unique(species_gbif_rl_total_out$redlistCategory)
-
-sp_total_out_cat_risk <- species_gbif_rl_total_out |>
-  group_by(redlistCategory) |>
-  summarise(
-    num_species = n_distinct(Name_species),
-    num_occorrenze = n()
-  )
-
-
-#plot the occurrences both outside Euap protected area and Natura 00 sites
-
-ita_map <- map_data("italy")
-
-species_gbif_rl_total_out$redlistCategory <- factor(species_gbif_rl_total_out$redlistCategory,
-  levels = c(
-    "Critically Endangered", "Endangered",
-    "Vulnerable", "Near Threatened",
-    "Least Concern", "Data Deficient"
-  )
-)
-
-
-plot_OUT <- ggplot() +
-  # coord_fixed() +
-  geom_polygon(data = ita_map, aes(x = long, y = lat, group = group), colour = "gray50", fill = "gray70", alpha = 0.5) +
-  geom_sf(data = siti_protet, color = NA, fill = "darkgreen", alpha = 0.4, size = 0.1) +
-  geom_sf(data = rete_nat_00, color = NA, fill = "chartreuse2", alpha = 0.4, size = 0.1) +
-  geom_sf(data = species_gbif_rl_total_out, aes(color = redlistCategory), size = 0.8) +
-  scale_color_manual(
-    name = "RedList Category",
-    values = c(
-      "Critically Endangered" = "darkred", "Endangered" = "red",
-      "Vulnerable" = "orange2", "Near Threatened" = "yellow",
-      "Least Concern" = "burlywood2", "Data Deficient" = "cyan2"
-    ),
-    labels = c(
-      "Critically Endangered (CE)", "Endangered (EN)", "Vulnerable(VU)",
-      "Near Threatened (NT)", "Least Concern (LC)", "Data Deficient (DD)"
-    ),
-    guide = guide_legend(override.aes = list(size = 1)) # cambiare dimensione legenda
-  ) +
-  theme_minimal()
-
-plot_OUT
-dev.off()
                          
+# Statistical ANALYSIS ----
+mapview_species_rl = mapview(species_gbif_rl, cex = 3, alpha = .5, popup = NULL)
+
+mapview_species_rl
+
+# confini dell'italia
+
+italy_boundary <- ne_countries(country = "Italy", scale = "medium", returnclass = "sf")
+ggplot(data = italy_boundary) +
+  geom_sf()
+dev.off()
+
+# Convertire il CRS in un sistema di coordinate in metri (es. EPSG:3035)
+
+italy_boundary <- st_transform(italy_boundary, crs = 3035)
+
+st_crs(italy_boundary)
+
+# Creazione griglia di quadrati
+
+net_grid <- st_make_grid(italy_boundary, cellsize = c(10000, 10000), square = TRUE)
+plot(net_grid)
+dev.off()
+
+net_grid_sf <- st_sf(net_grid)
+
+# Uso sparse = FALSE per ottenere una matrice booleana
+
+intersections <- st_intersects(net_grid_sf, italy_boundary, sparse = FALSE)
+
+# Filtrare net_grid utilizzando la matrice delle intersezioni
+
+net_grid_sf_italy <- net_grid_sf[rowSums(intersections) > 0, ]
+
+plot(net_grid_sf_italy[1])
+dev.off()
+
+# Indicizzazione dei quadrati della griglia per facilitare analisi 
+
+net_grid_sf_italy <- net_grid_sf_italy |> 
+  mutate(grid_id = 1:n())
+
+st_crs(net_grid_sf_italy)
+
+net_grid_sf_italy <- st_make_valid(net_grid_sf_italy)
+
+siti_protet_union <- st_union(siti_protet)
+
+siti_protet_union <- st_make_valid(siti_protet_union)
+
+siti_protet_union <- st_transform(siti_protet_union, crs = st_crs(net_grid_sf_italy))
+
+st_crs(net_grid_sf_italy) == st_crs(siti_protet_union)
+
+# Intersezione tra griglia e aree protette per trovare la superficie protetta
+intersezioni <- st_intersection(net_grid_sf_italy, siti_protet_union)
+
+str(intersezioni)
+
+# Rendi valide le geometrie
+intersezioni <- st_make_valid(intersezioni)
+
+# # Rimuovi le intersezione duplicate basandoti sulla geometria
+# dddddd <- intersezioni |> 
+#   distinct(net_grid, .keep_all = TRUE)
+# rm(dddddd)
+
+
+# intersezioni_sf <- st_sf(intersezioni)
+
+# Unisci la geometria della griglia e delle intersezioni
+# intersezioni_plot <- ggplot() +
+#   geom_sf(data = net_grid_sf_italy, fill = "red", color = "darkred", alpha = 0.3) +  # Griglia di quadrati
+#   geom_sf(data = intersezioni_sf, fill = "blue", color = "darkblue", alpha = 0.5) +  # Aree protette
+#   labs(title = "Intersezioni tra Griglia e Aree Protette", x = "Longitudine", y = "Latitudine") +
+#   theme_minimal() +
+#   theme(legend.position = "none")
+# intersezioni_plot
+# dev.off()
+
+# Sistema di riferimento adeguato per st_area in m^2
+
+st_crs(intersezioni) # 3035 va bene, invece crs 4326 no, perchè è in gradi
+
+# intersezioni <- st_transform(intersezioni, crs = 3035) # crs in metri
+
+
+# Calcola l'area delle intersezioni
+
+intersezioni$area_intersecata <- st_area(intersezioni)
+
+
+# Aggrega e conta l'area protetta (delle intersezioni) per ciascuna cella della griglia
+area_protetta_per_cella <- intersezioni |> 
+  group_by(grid_id) |> 
+  summarize(area_protetta = sum(area_intersecata, na.rm = TRUE))
+
+# A questo punto, ho un dataframe con l'area protetta per ogni quadrato
+
+# Calcola la superficie totale di ciascuna cella della griglia
+
+net_grid_sf_italy$area_totale <- st_area(net_grid_sf_italy)
+
+
+net_grid_italy <- st_drop_geometry(net_grid_sf_italy)
+
+area_protetta_per_cella_nogeom <- st_drop_geometry(area_protetta_per_cella)                                  
+
+net_grid_italy <- left_join(net_grid_italy, area_protetta_per_cella_nogeom, by = "grid_id")
+
+net_grid_italy <- net_grid_italy |> 
+  mutate(percentuale_protetta = round((area_protetta / area_totale) * 100,1))
+
+net_grid_italy$area_protetta[is.na(net_grid_italy$area_protetta)] <- 0
+net_grid_italy$percentuale_protetta[is.na(net_grid_italy$percentuale_protetta)] <- 0
+
+
+
+# lavoro con le occ. totali "species_gbif_rl" e con le occ. "sp_in_aree_pr_df"
+
+species_gbif_rl <- st_transform(species_gbif_rl, crs = st_crs(net_grid_sf_italy))
+
+species_gbif_rl_w_grid <- st_join(species_gbif_rl, net_grid_sf_italy, join = st_within)
+
+# Calcola il numero di occorrenze totali per cella
+
+occ_tot_per_cella <- species_gbif_rl_w_grid |> 
+  group_by(grid_id) |> 
+  summarise(occ_totali = n(), .groups = 'drop') |> 
+  st_drop_geometry()
+
+# Aggiungi una colonna 'grid_id' al dataframe delle occorrenze protette
+
+sp_in_aree_pr_sf <- st_as_sf(sp_in_aree_pr_df)
+
+sp_in_aree_pr_sf <- st_transform(sp_in_aree_pr_sf, crs = 3035)
+
+# st_crs(sp_in_aree_pr_sf) == st_crs(net_grid_sf_italy)
+
+sp_in_aree_pr_w_grid <- st_join(sp_in_aree_pr_sf, net_grid_sf_italy, join = st_within)
+
+# Calcola il numero di occorrenze protette per cella
+
+occ_prot_per_cella <- sp_in_aree_pr_w_grid |> 
+  group_by(grid_id) |> 
+  summarise(occ_protette = n(), .groups = 'drop') |> 
+  st_drop_geometry()
+
+# Unisci i conteggi delle occorrenze totali e protette nel dataframe della griglia
+
+net_grid_italy <- net_grid_italy |> 
+  left_join(occ_tot_per_cella, by = "grid_id") |> 
+  left_join(occ_prot_per_cella, by = "grid_id")
+
+# 
+
+net_grid_italy <- net_grid_italy |> 
+  mutate(percentuale_occ_protette = round((occ_protette / occ_totali) * 100,1))
+
+
+net_grid_italy <- net_grid_italy |> 
+  mutate(
+    occ_totali = replace_na(occ_totali, 0),
+    occ_protette = replace_na(occ_protette, 0),
+    percentuale_occ_protette = replace_na(percentuale_occ_protette, 0)
+  )
+
+write.csv(net_grid_italy, "linear_mod.csv")
+
+# Calcola la regressione lineare
+mod <- lm(percentuale_occ_protette ~ as.numeric(percentuale_protetta), data = net_grid_italy)
+
+summary(mod)
+
+# Aggiungi i valori predetti e calcola lo scarto
+
+net_grid_italy <- net_grid_italy |> 
+  mutate(predicted = predict(mod), 
+         scarto = percentuale_occ_protette - predicted)
+
+# plot
+scatter_plot_final <- ggplot(net_grid_italy, aes(x = as.numeric(percentuale_protetta), y = percentuale_occ_protette))+
+  geom_point(size = 0.9) +
+  geom_line(aes(y = predicted), color = "blue", linetype = "dashed") +  # retta di regressione
+  #geom_segment(aes(xend = as.numeric(percentuale_protetta), yend = predicted), color = "red", linetype = "dotted") +  # scarti
+  labs(title = "Scatter Plot EUAP sites",
+       x = "Protected area %",
+       y = "Protected occurrences %") +
+  annotate("text", x = 90, y = 20, 
+           label = paste("Slope: ", round(slope, 2), "\n",
+           "t-value: 76.77", "\n",
+           "p-value: ", p_value, "\n",
+           "R^2: ", round(r_squared, 4)),
+            size = 4, color = "black", hjust = 0) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 12), 
+    # panel.grid.major = element_blank(),  # Removes major grid lines
+    # panel.grid.minor = element_blank()   # Removes minor grid lines
+  )
+
+scatter_plot_final
+dev.off()
+
+
+scarto <- net_grid_italy[,c("grid_id","scarto")]
+net_grid_sf_italy <- left_join(net_grid_sf_italy, scarto, by = "grid_id")
+
+st_crs(net_grid_sf_italy)
+
+# italy_shp_region <- st_read("C:/Project_tirocinio/data/gadm41_ITA_1.shp")
+italy_shp_region <- st_transform(italy_shp_region, crs = st_crs(net_grid_sf_italy))
+
+color <- colorRampPalette(c("darkred", "white", "darkgreen"))(50)
+plot_finale <- ggplot()+
+  geom_sf(data = net_grid_sf_italy, aes(fill = scarto), colour = "black") +
+  # geom_sf(data = italy_shp_region, fill = NA, color = "grey20", alpha = 0.1) +
+  scale_fill_gradientn(colors = color, name = "Residuals") +
+  labs(title = "Residuals Sites EUAP") +
+  theme_minimal() +
+  theme( 
+    legend.title = element_text(size = 12, face = "plain"),  # Titolo della legenda
+    legend.text = element_text(size = 10),  # Testo delle etichette
+    legend.key.size = unit(0.6, "cm"),# Dimensione dei simboli nella legenda
+    # legend.position = "right",
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    axis.text.x = element_blank(),     # Remove x-axis labels
+    axis.text.y = element_blank(),      # Remove y-axis labels  
+    # panel.background = element_blank(),    # Remove panel background
+    plot.background = element_blank(),     # Remove plot background
+    panel.grid = element_blank()           # Remove grid lines
+  )
+plot_finale
+dev.off()
+
+# Estrai i coefficienti e il R^2
+slope <- coef(mod)[2]  # pendenza
+intercept <- coef(mod)[1]  # intercetta
+r_squared <- summary(mod)$r.squared  # R^2
+p_value <- "<2e-16***"# summary(mod)$coefficients[2, 4]  # p-value per la pendenza                
